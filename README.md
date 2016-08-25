@@ -41,3 +41,5 @@ Again the commands are:
 
 `./gradlew publish -Dtcnative_version=(some netty-tcnative git tag)`
 
+### Output
+The artifacts are published with classifier ```linux-x86_64-alpine```
