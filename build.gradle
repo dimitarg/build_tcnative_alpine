@@ -1,0 +1,124 @@
+def repoName = 'netty-tcnative-alpine'
+def netty_tcnative_alpine_url = "git@github.com:pires/${repoName}.git"
+
+def tcnative_version = System.getProperty('tcnative_version')
+if (tcnative_version == null || tcnative_version.isEmpty()) {
+    tcnative_version = '1.1.33.Fork19';
+}
+
+def tcnative_tag = 'netty-tcnative-' + tcnative_version
+
+apply plugin: 'maven-publish'
+
+def buildDir = project.buildDir
+def binDir = new File(buildDir, 'binaries')
+
+
+publishing {
+    repositories {
+
+        mavenLocal()
+        maven {
+            name 'Main'
+            url mavenRepoUrl
+            credentials {
+                username mavenRepoUser
+                password mavenRepoPassword
+            }
+        }
+    }
+
+    publications {
+
+        TcNativeAlpineLinux(MavenPublication) {
+            artifactId 'netty-tcnative'
+            version tcnative_version
+            groupId 'io.netty'
+            artifact(new File(binDir, getJarName('netty-tcnative', tcnative_version, 'linux-x86_64'))) {
+                classifier = 'linux-x86_64-alpine'
+                extension = 'jar'
+            }
+        }
+
+        BoringSslAlpineLinux(MavenPublication) {
+            artifactId 'netty-tcnative-boringssl-static'
+            version tcnative_version
+            groupId 'io.netty'
+            artifact(new File(binDir, getJarName('netty-tcnative-boringssl-static', tcnative_version, 'linux-x86_64'))) {
+                classifier = 'linux-x86_64-alpine'
+                extension = 'jar'
+            }
+        }
+
+        OpenSslAlpineLinux(MavenPublication) {
+            artifactId 'netty-tcnative-openssl-static'
+            version tcnative_version
+            groupId 'io.netty'
+            artifact(new File(binDir, getJarName('netty-tcnative-openssl-static', tcnative_version, 'linux-x86_64'))) {
+                classifier = 'linux-x86_64-alpine'
+                extension = 'jar'
+            }
+        }
+
+    }
+
+}
+
+
+task clean() {
+    doLast {
+        buildDir.deleteDir()
+    }
+}
+
+task clone() {
+    doLast {
+        def cloneDir = new File(buildDir, repoName)
+
+        def cloneProcess = "git clone $netty_tcnative_alpine_url $cloneDir".execute()
+        waitForSuccess(cloneProcess)
+        clone.ext.cloneDir = cloneDir
+    }
+}
+
+task buildDocker() {
+    doLast {
+        def cmd = "docker build --build-arg NETTY_TCNATIVE_TAG=$tcnative_tag -t pires/netty-tcnative-alpine $clone.cloneDir"
+        println("executing command: $cmd")
+
+        def buildProcess = cmd.execute()
+        waitForSuccess(buildProcess)
+        println(buildProcess.text.trim())
+    }
+}
+
+task buildBinaries() {
+    doLast {
+        def runPs = "docker run -v $binDir:/output pires/netty-tcnative-alpine".execute()
+        waitForSuccess(runPs)
+    }
+}
+
+clone.dependsOn(clean)
+buildDocker.dependsOn(clone)
+buildBinaries.dependsOn(buildDocker)
+
+tasks.withType(org.gradle.api.publish.maven.tasks.AbstractPublishToMaven) {
+    dependsOn(buildBinaries)
+}
+
+def waitForSuccess(Process process) {
+    process.consumeProcessOutput(java.lang.System.out, java.lang.System.err)
+    process.waitFor()
+    if (process.exitValue() != 0) {
+        throw new RuntimeException(process.errorStream.text)
+    }
+}
+
+String getJarName(String artifact, String version, String classifier) {
+    if (classifier == null || classifier.isEmpty()) {
+        return "${artifact}-${version}.jar"
+    } else {
+        return "${artifact}-${version}-${classifier}.jar"
+    }
+}
