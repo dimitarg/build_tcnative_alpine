@@ -30,7 +30,7 @@ You can confugure what version (and git tag) of tcnative will be built via the s
 
 ### Publishing to the remote maven repo
 
-*You need to setup `gradle.properties` like [this](./README.md#Prerequisites)*
+**You need to setup `gradle.properties` like [this](#prerequisites)**
 
 
 Again the commands are:
